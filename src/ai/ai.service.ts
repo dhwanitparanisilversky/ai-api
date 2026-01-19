@@ -1,50 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
+import { TaskDefinition } from '../tasks/task.registry';
 
 @Injectable()
 export class AiService {
   private client = new OpenAI({
-    apiKey: process.env.OPEN_AI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY,
   });
 
-  async execute(taskId: string, inputText: string): Promise<string> {
-    const systemPrompt = `
-You must respond ONLY by calling the provided function.
-You must not output text.
-You must not explain.
-You must not add extra fields.
-You must return valid JSON only.
-`;
-
+  async execute(inputText: string, taskdef: TaskDefinition): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: 'gpt-4.1-mini',
       temperature: 0,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: taskdef.systemPrompt },
         {
           role: 'user',
-          content: `Task ID: ${taskId}\nInput: ${inputText}`,
+          content: inputText,
         },
       ],
       tools: [
         {
           type: 'function',
-          function: {
-            name: 'structured_response',
-            description: 'Return structured execution output',
-            parameters: {
-              type: 'object',
-              properties: {
-                task_id: { type: 'string' },
-                summary: { type: 'string' },
-                status: {
-                  type: 'string',
-                  enum: ['success', 'failure'],
-                },
-              },
-              required: ['task_id', 'summary', 'status'],
-            },
-          },
+          function: taskdef.toolSchema
         },
       ],
       tool_choice: {
